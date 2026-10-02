@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>نسخه‌ی ورق‌زدنی — زندگی‌نامه‌ی من</title>
+<style>
+  @font-face {
+    font-family: "Noto Naskh Arabic";
+    font-weight: 400 700;
+    font-display: swap;
+    src: url(../fonts/noto-naskh-arabic-arabic.woff2) format("woff2");
+    unicode-range: U+0600-06FF, U+200C-200E, U+FB50-FDFF, U+FE70-FEFC;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .7rem;
+    padding: .6rem 12px;
+    background: #2b2622;
+    color: #e7dcc8;
+    font: 15px/1.9 "Noto Naskh Arabic", "Geeza Pro", Tahoma, sans-serif;
+  }
+
+  /* Width decides everything: the library keeps the page ratio, and shows two
+     pages when the stage is at least 600px wide (2 x minWidth), one page below. */
+  #stage {
+    --h: calc(100vh - 5.2rem);
+    --h: calc(100dvh - 5.2rem);
+    flex: none;
+    width: clamp(600px, min(100vw - 24px, var(--h) * 1.4138), 2600px);
+  }
+  @media (max-width: 699px), (max-height: 480px) {
+    #stage {
+      --h: calc(100vh - 7.4rem);
+      --h: calc(100dvh - 7.4rem);
+      width: min(100vw - 24px, var(--h) * 0.7069, 599px);
+    }
+  }
+  #book { box-shadow: 0 12px 44px rgba(0, 0, 0, .55); }
+  .page { background: #fff; overflow: hidden; }
+  .page img { display: block; width: 100%; height: 100%; }
+
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+  }
+  nav button, nav a, nav select {
+    font: inherit;
+    padding: 0 .8rem;
+    border: 1px solid #5a5046;
+    border-radius: 3px;
+    background: transparent;
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  nav select { max-width: 13rem; padding-block: .25rem; }
+  nav select option { color: #2b2622; }
+  nav button:hover, nav a:hover { border-color: #e7dcc8; }
+  #pos { min-width: 6.5rem; text-align: center; }
+</style>
+</head>
+<body>
+
+<div id="stage"><div id="book"></div></div>
+
+<nav>
+  <button id="back" type="button">→ قبل</button>
+  <span id="pos"></span>
+  <button id="fwd" type="button">بعد ←</button>
+  <select id="chapter" aria-label="رفتن به فصل"></select>
+  <button id="full" type="button">تمام‌صفحه</button>
+  <a href="../index.html">نسخه‌ی متنی</a>
+  <a href="../zendegi-nameh-final.pdf">PDF</a>
+</nav>
+
+<script src="chapters.js"></script>
+<script src="page-flip.browser.js"></script>
+<script>
+(function () {
+  var KEY = "zendegi-nameh-flip";
+  var N = BOOK.pages;
+  var T = N % 2 ? N + 1 : N;          // an even count keeps both covers alone
+  var fa = function (n) { return n.toLocaleString("fa-IR", { useGrouping: false }); };
+
+  // A right-to-left book: the pages are laid out in reverse, so the front cover
+  // is the last element and reading forward moves toward the first.
+  // Element i holds printed page T - i.
+  var book = document.getElementById("book");
+  var imgs = [];
+  for (var i = 0; i < T; i++) {
+    var no = T - i;
+    var page = document.createElement("div");
+    page.className = "page";
+    if (no <= N) {
+      var img = document.createElement("img");
+      img.alt = "صفحه‌ی " + fa(no);
+      img.decoding = "async";
+      img.dataset.src = "pages/p" + String(no).padStart(3, "0") + ".webp";
+      page.appendChild(img);
+      imgs[i] = img;
+    }
+    book.appendChild(page);
+  }
+
+  // Only the pages around the open one are downloaded.
+  function load(index) {
+    for (var j = index - 6; j <= index + 7; j++) {
+      var im = imgs[j];
+      if (im && !im.getAttribute("src")) im.src = im.dataset.src;
+    }
+  }
+
+  // Open at ?p=<printed page>, else where this browser last left off, else the cover.
+  var saved = Number(new URLSearchParams(location.search).get("p"));
+  try { saved = saved || Number(localStorage.getItem(KEY)); } catch (e) { /* private mode */ }
+  if (!(saved >= 1 && saved <= N)) saved = 1;
+  load(T - saved);
+
+  var pf = new St.PageFlip(book, {
+    width: 1300, height: 1839,
+    size: "stretch",
+    minWidth: 300, maxWidth: 1300, minHeight: 424, maxHeight: 1839,
+    showCover: true,
+    usePortrait: true,
+    drawShadow: true, maxShadowOpacity: 0.4,
+    flippingTime: 700,
+    mobileScrollSupport: true,
+    startPage: T - saved
+  });
+  pf.loadFromHTML(book.querySelectorAll(".page"));
+
+  var pos = document.getElementById("pos");
+  var select = document.getElementById("chapter");
+
+  select.appendChild(new Option("رفتن به فصل…", ""));
+  BOOK.chapters.forEach(function (c) { select.appendChild(new Option(c.title, c.page)); });
+
+  function update() {
+    var index = pf.getCurrentPageIndex();
+    load(index);
+    var hi = T - index;                                  // printed page of the element
+    var two = pf.getOrientation() === "landscape" && index > 0 && index < T - 1;
+    var lo = two ? hi - 1 : hi;
+    if (hi > N) hi = N;
+    pos.textContent = lo > N ? "پایان" : (lo < hi ? fa(lo) + "–" + fa(hi) : fa(hi)) + " از " + fa(N);
+    select.value = "";
+    try { localStorage.setItem(KEY, String(Math.min(lo, N))); } catch (e) { /* private mode */ }
+  }
+  pf.on("init", update);
+  pf.on("flip", update);
+  pf.on("changeOrientation", update);
+
+  // Forward in a right-to-left book is the library's "previous".
+  var forward = function () { pf.flipPrev(); };
+  var backward = function () { pf.flipNext(); };
+  document.getElementById("fwd").onclick = forward;
+  document.getElementById("back").onclick = backward;
+  select.onchange = function () {
+    if (!select.value) return;
+    var index = T - Number(select.value);
+    load(index);
+    pf.turnToPage(index);
+    update();
+  };
+  document.getElementById("full").onclick = function () {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+  };
+  addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft") forward();
+    if (e.key === "ArrowRight") backward();
+  });
+
+  // With one page showing, the library's own tap and drag handling assumes a
+  // left-to-right book, so most touches would turn backwards. Take over there:
+  // swipe or tap toward the right edge goes forward, as in a Persian book.
+  var stage = document.getElementById("stage");
+  var single = function () { return pf.getOrientation() === "portrait"; };
+  var zoomed = function () { return window.visualViewport && window.visualViewport.scale > 1.05; };
+  var from = null;
+  stage.addEventListener("touchstart", function (e) {
+    if (!single()) return;
+    e.stopPropagation();
+    from = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+  }, { capture: true, passive: true });
+  stage.addEventListener("touchend", function (e) {
+    if (!single() || !from || zoomed()) return;
+    var t = e.changedTouches[0];
+    var dx = t.clientX - from.x, dy = t.clientY - from.y;
+    from = null;
+    if (Math.abs(dx) > 40 && Math.abs(dy) < 80) (dx > 0 ? forward : backward)();
+  }, { capture: true, passive: true });
+  stage.addEventListener("mousedown", function (e) {
+    if (single()) e.stopPropagation();
+  }, true);
+  stage.addEventListener("click", function (e) {
+    if (!single() || zoomed()) return;
+    var box = stage.getBoundingClientRect();
+    var at = (e.clientX - box.left) / box.width;
+    if (at < 0.4) forward();
+    else if (at > 0.6) backward();
+  });
+})();
+</script>
+</body>
+</html>
