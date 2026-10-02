@@ -1,7 +1,7 @@
 # زندگی‌نامه‌ی من — سیدحسن جعفری
 
 The memoir of Seyed Hasan Jafari, published as a small book site:
-<https://bijarsar.github.io/daei-hassan/>
+<https://daei-hassan.github.io/bio/>
 
 The site has two versions of the book:
 
